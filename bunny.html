@@ -2,9 +2,9 @@
 <html lang="cs">
 <head>
   <meta charset="utf-8" />
-  <!-- Mobile-first: zabrání zoomu pøi double tapu + správné mìøítko -->
+  <!-- Mobile-first: zabrÃ¡nÃ­ zoomu pÃ¸i double tapu + sprÃ¡vnÃ© mÃ¬Ã¸Ã­tko -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Králíèek: kameny & mrkve (mobile)</title>
+  <title>Kralicek: kameny & mrkve (mobile)</title>
   <style>
     :root { color-scheme: light; }
     html, body {
@@ -12,11 +12,11 @@
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       background: #0b1220;
-      overscroll-behavior: none; /* zabrání “pull to refresh” na nìkterıch prohlíeèích */
+      overscroll-behavior: none; /* zabrÃ¡nÃ­ â€œpull to refreshâ€ na nÃ¬kterÃ½ch prohlÃ­Å¾eÃ¨Ã­ch */
     }
     body { display:flex; flex-direction: column; }
 
-    /* Herní plocha pøes celou vıšku */
+    /* HernÃ­ plocha pÃ¸es celou vÃ½Å¡ku */
     .gameShell{
       position: relative;
       flex: 1;
@@ -29,7 +29,7 @@
       height: 100%;
       max-height: 100vh;
       display:block;
-      touch-action: none; /* dùleité: nezoomovat, nescrollovat pøi tapu */
+      touch-action: none; /* dÃ¹leÅ¾itÃ©: nezoomovat, nescrollovat pÃ¸i tapu */
       user-select: none;
       background: linear-gradient(#cfefff 0%, #e9fbff 60%, #f7f6ef 60%, #f7f6ef 100%);
     }
@@ -44,7 +44,7 @@
       gap: 8px;
       justify-content: space-between;
       align-items:center;
-      pointer-events: none; /* aby šel tap “skrze” HUD do hry */
+      pointer-events: none; /* aby Å¡el tap â€œskrzeâ€ HUD do hry */
     }
     .pill{
       pointer-events: none;
@@ -60,7 +60,7 @@
       display:flex; gap:8px; align-items:center;
     }
 
-    /* Velké mobilní tlaèítko */
+    /* VelkÃ© mobilnÃ­ tlaÃ¨Ã­tko */
     .controls{
       position: absolute;
       bottom: calc(env(safe-area-inset-bottom) + 14px);
@@ -90,7 +90,7 @@
       box-shadow: 0 16px 28px rgba(0,0,0,.22);
     }
 
-    /* Malı tip (na mobilu schovanı) */
+    /* MalÃ½ tip (na mobilu schovanÃ½) */
     .hint{
       position:absolute;
       bottom: calc(env(safe-area-inset-bottom) + 78px);
@@ -108,8 +108,8 @@
 </head>
 <body>
   <div class="gameShell">
-    <!-- Canvas vnitøní rozlišení se nastaví JS podle devicePixelRatio -->
-    <canvas id="game" aria-label="Hra králíèek pøeskakuje kameny a sbírá mrkve"></canvas>
+    <!-- Canvas vnitÃ¸nÃ­ rozliÅ¡enÃ­ se nastavÃ­ JS podle devicePixelRatio -->
+    <canvas id="game" aria-label="Hra krÃ¡lÃ­Ã¨ek pÃ¸eskakuje kameny a sbÃ­rÃ¡ mrkve"></canvas>
 
     <div class="hud">
       <div class="pill"><b>Skore:</b> <span id="score">0</span> &nbsp;|&nbsp; <b>Mrkve:</b> <span id="carrots">0</span></div>
@@ -118,7 +118,7 @@
       </div>
     </div>
 
-    <div class="hint">Tap kdekoliv = skok • Dlouhı tap neøešíme (zatím) • Restart tlaèítkem</div>
+    <div class="hint">Tap kdekoliv = skok â€¢ DlouhÃ½ tap neÃ¸eÅ¡Ã­me (zatÃ­m) â€¢ Restart tlaÃ¨Ã­tkem</div>
 
     <div class="controls">
       <button class="btn secondary" id="restart">Restart</button>
@@ -137,12 +137,12 @@
   const btnRestart = document.getElementById("restart");
   const btnJump = document.getElementById("jumpBtn");
 
-  // --- “Virtuální” herní svìt (logické souøadnice) ---
-  // Budeme kreslit do WORLD (960×420) a canvas jen škálovat podle obrazovky.
+  // --- â€œVirtuÃ¡lnÃ­â€ hernÃ­ svÃ¬t (logickÃ© souÃ¸adnice) ---
+  // Budeme kreslit do WORLD (960Ã—420) a canvas jen Å¡kÃ¡lovat podle obrazovky.
   const WORLD = { w: 960, h: 420 };
   const GROUND_Y = 320;
 
-  // Fyzika / obtínost
+  // Fyzika / obtÃ­Å¾nost
   const GRAVITY = 2100;
   const JUMP_V = 820;
   const BASE_SPEED = 360;
@@ -154,7 +154,7 @@
 
   // Retina / resize
   function resize() {
-    // Udríme aspect ratio WORLD, aby se hra nedeformovala.
+    // UdrÅ¾Ã­me aspect ratio WORLD, aby se hra nedeformovala.
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     const cssW = window.innerWidth;
     const cssH = window.innerHeight;
@@ -169,13 +169,13 @@
     canvas.width = Math.floor(WORLD.w * dpr);
     canvas.height = Math.floor(WORLD.h * dpr);
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // kreslíme v WORLD jednotkách
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // kreslÃ­me v WORLD jednotkÃ¡ch
   }
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
 
-  // Zabránit scrollu pøi gestu na iOS/Safari
+  // ZabrÃ¡nit scrollu pÃ¸i gestu na iOS/Safari
   document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
   // Best score
@@ -234,7 +234,7 @@
     running = true;
   }
 
-  // Ovládání: tap kdekoliv do hry + tlaèítko
+  // OvlÃ¡dÃ¡nÃ­: tap kdekoliv do hry + tlaÃ¨Ã­tko
   function jump() {
     if (!running && !gameOver) start();
     if (gameOver) { reset(); start(); return; }
@@ -251,7 +251,7 @@
     }
   }
 
-  // Pointer events fungují pro myš i touch
+  // Pointer events fungujÃ­ pro myÅ¡ i touch
   canvas.addEventListener("pointerdown", (e) => { e.preventDefault(); jump(); }, { passive: false });
   btnJump.addEventListener("pointerdown", (e) => { e.preventDefault(); jump(); }, { passive: false });
 
@@ -326,7 +326,7 @@
     }
   }
 
-  // Kreslení
+  // KreslenÃ­
   function roundRect(x, y, w, h, r, fill, stroke) {
     const rr = Math.min(r, w/2, h/2);
     ctx.beginPath();
@@ -511,7 +511,7 @@
   }
 
   function drawOverlay() {
-    if (!running && !gameOver) banner("Tapni pro start", "Tap kdekoliv = skok • Sbirej mrkve");
+    if (!running && !gameOver) banner("Tapni pro start", "Tap kdekoliv = skok â€¢ Sbirej mrkve");
     if (gameOver) banner("Konec hry!", "Tap / SKOK pro restart");
   }
 
@@ -609,4 +609,5 @@
 })();
 </script>
 </body>
+
 </html>
