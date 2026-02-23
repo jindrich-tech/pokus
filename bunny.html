@@ -112,9 +112,9 @@
     <canvas id="game" aria-label="Hra králíèek pøeskakuje kameny a sbírá mrkve"></canvas>
 
     <div class="hud">
-      <div class="pill"><b>Skóre:</b> <span id="score">0</span> &nbsp;|&nbsp; <b>Mrkve:</b> <span id="carrots">0</span></div>
+      <div class="pill"><b>Skore:</b> <span id="score">0</span> &nbsp;|&nbsp; <b>Mrkve:</b> <span id="carrots">0</span></div>
       <div class="right">
-        <div class="pill"><b>Nejlepší:</b> <span id="best">0</span></div>
+        <div class="pill"><b>Nejlepsi:</b> <span id="best">0</span></div>
       </div>
     </div>
 
@@ -511,7 +511,7 @@
   }
 
   function drawOverlay() {
-    if (!running && !gameOver) banner("Tapni pro start", "Tap kdekoliv = skok • Sbírej mrkve ??");
+    if (!running && !gameOver) banner("Tapni pro start", "Tap kdekoliv = skok • Sbirej mrkve");
     if (gameOver) banner("Konec hry!", "Tap / SKOK pro restart");
   }
 
