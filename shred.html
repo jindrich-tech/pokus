@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Shred Trail: MTB jump & trick</title>
+  <style>
+    :root { color-scheme: light; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #0b1220;
+      overscroll-behavior: none;
+    }
+    body { display:flex; flex-direction: column; }
+
+    .gameShell{
+      position: relative;
+      flex: 1;
+      display: grid;
+      place-items: center;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    canvas{
+      width: 100vw;
+      height: 100%;
+      max-height: 100vh;
+      display:block;
+      touch-action: none;
+      user-select: none;
+      background: linear-gradient(#8dd9ff 0%, #d5f1ff 55%, #e4d2b6 55%, #e1caa8 100%);
+    }
+
+    .hud{
+      position:absolute;
+      top: calc(env(safe-area-inset-top) + 10px);
+      left: calc(env(safe-area-inset-left) + 10px);
+      right: calc(env(safe-area-inset-right) + 10px);
+      display:flex;
+      gap: 8px;
+      justify-content: space-between;
+      align-items:center;
+      pointer-events: none;
+    }
+    .pill{
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 14px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+      white-space: nowrap;
+    }
+
+    .controls{
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom) + 14px);
+      left: 0; right: 0;
+      display:flex;
+      justify-content: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+    .btn{
+      pointer-events: auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 18px;
+      min-width: 140px;
+      font-weight: 750;
+      font-size: 16px;
+      background: #0d8b5a;
+      color: #fff;
+      box-shadow: 0 16px 28px rgba(13,139,90,.28);
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn.secondary{
+      background: rgba(255,255,255,0.92);
+      color: #0b1220;
+      box-shadow: 0 16px 28px rgba(0,0,0,.22);
+    }
+
+    .hint{
+      position:absolute;
+      bottom: calc(env(safe-area-inset-bottom) + 78px);
+      left: 0; right: 0;
+      text-align:center;
+      color: rgba(255,255,255,0.78);
+      font-size: 12px;
+      pointer-events:none;
+    }
+    @media (min-width: 800px){
+      canvas{ width: min(980px, 100vw); border-radius: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="gameShell">
+    <canvas id="game" aria-label="MTB game"></canvas>
+
+    <div class="hud">
+      <div class="pill"><b>Score:</b> <span id="score">0</span> | <b>Combo:</b> <span id="combo">x1</span></div>
+      <div class="pill"><b>Best:</b> <span id="best">0</span></div>
+    </div>
+
+    <div class="hint">Tap once = Jump · Tap twice fast = Backflip trick</div>
+
+    <div class="controls">
+      <button class="btn secondary" id="restart">Restart</button>
+      <button class="btn" id="jumpBtn">JUMP / TRICK</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d", { alpha: true });
+
+  const elScore = document.getElementById("score");
+  const elCombo = document.getElementById("combo");
+  const elBest = document.getElementById("best");
+  const btnRestart = document.getElementById("restart");
+  const btnJump = document.getElementById("jumpBtn");
+
+  const WORLD = { w: 960, h: 420 };
+  const GROUND_Y = 320;
+
+  const PHYSICS = {
+    gravity: 2350,
+    jumpVelocity: 860,
+    baseSpeed: 380,
+    speedGrow: 16,
+    spawnMin: 0.9,
+    spawnMax: 1.55,
+    doubleTapMs: 280
+  };
+
+  const BIKER_STYLE = {
+    scale: 1,
+    rider: {
+      skin: "#e4d4c4",
+      shirt: "#f3f3f3",
+      sleeves: "#e53935",
+      shorts: "#d63b34",
+      helmet: "#1f3239",
+      visor: "#0f8d7b",
+      shoes: "#808792"
+    },
+    bike: {
+      frame: "#d9dde1",
+      tire: "#111827",
+      rim: "#2e3748",
+      chainring: "#aeb6bf",
+      fork: "#d5dce4",
+      hub: "#9ca3af"
+    }
+  };
+
+  function resize() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const cssW = window.innerWidth;
+    const cssH = window.innerHeight;
+
+    const scale = Math.min(cssW / WORLD.w, cssH / WORLD.h);
+    canvas.style.width = Math.floor(WORLD.w * scale) + "px";
+    canvas.style.height = Math.floor(WORLD.h * scale) + "px";
+
+    canvas.width = Math.floor(WORLD.w * dpr);
+    canvas.height = Math.floor(WORLD.h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", resize);
+  document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+
+  const bestKey = "shred_best_v1";
+  let best = Number(localStorage.getItem(bestKey) || 0);
+  elBest.textContent = best;
+
+  let running = false;
+  let gameOver = false;
+  let tPrev = performance.now();
+  let score = 0;
+  let combo = 1;
+  let speed = PHYSICS.baseSpeed;
+  let parallaxNear = 0;
+  let parallaxFar = 0;
+  let spawnTimer = rand(PHYSICS.spawnMin, PHYSICS.spawnMax);
+  let tapTimer = 0;
+  let tapCount = 0;
+
+  const particles = [];
+  const hazards = [];
+
+  const biker = {
+    x: 190,
+    y: GROUND_Y - 56,
+    w: 130,
+    h: 82,
+    vy: 0,
+    onGround: true,
+    airborneTime: 0,
+    rotation: 0,
+    isFlipping: false,
+    flipsCompleted: 0,
+    lastGroundX: 190
+  };
+
+  function reset() {
+    running = false;
+    gameOver = false;
+    score = 0;
+    combo = 1;
+    speed = PHYSICS.baseSpeed;
+    parallaxNear = 0;
+    parallaxFar = 0;
+    spawnTimer = rand(PHYSICS.spawnMin, PHYSICS.spawnMax);
+    tapTimer = 0;
+    tapCount = 0;
+    particles.length = 0;
+    hazards.length = 0;
+
+    biker.y = GROUND_Y - biker.h;
+    biker.vy = 0;
+    biker.onGround = true;
+    biker.airborneTime = 0;
+    biker.rotation = 0;
+    biker.isFlipping = false;
+    biker.flipsCompleted = 0;
+    biker.lastGroundX = biker.x;
+
+    elScore.textContent = score;
+    elCombo.textContent = "x1";
+    draw();
+  }
+
+  function start() {
+    if (gameOver) reset();
+    running = true;
+  }
+
+  function doJump() {
+    if (biker.onGround) {
+      biker.vy = -PHYSICS.jumpVelocity;
+      biker.onGround = false;
+      biker.airborneTime = 0;
+      biker.rotation = 0;
+      biker.isFlipping = false;
+      biker.flipsCompleted = 0;
+      dust(biker.x + 35, GROUND_Y - 6, 10);
+    }
+  }
+
+  function doTrick() {
+    if (!biker.onGround && !biker.isFlipping && biker.airborneTime < 0.36) {
+      biker.isFlipping = true;
+    }
+  }
+
+  function handleTap() {
+    if (!running && !gameOver) start();
+    if (gameOver) { reset(); start(); return; }
+
+    tapCount += 1;
+    tapTimer = PHYSICS.doubleTapMs / 1000;
+
+    if (tapCount === 1) doJump();
+    if (tapCount === 2) doTrick();
+  }
+
+  canvas.addEventListener("pointerdown", (e) => { e.preventDefault(); handleTap(); }, { passive: false });
+  btnJump.addEventListener("pointerdown", (e) => { e.preventDefault(); handleTap(); }, { passive: false });
+  btnRestart.addEventListener("click", () => { reset(); start(); });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); handleTap(); }
+    if (e.key.toLowerCase() === "r") { reset(); start(); }
+  }, { passive:false });
+
+  function spawnHazard() {
+    const type = Math.random() < 0.58 ? "stone" : "gap";
+    if (type === "stone") {
+      const h = rand(32, 62);
+      hazards.push({ type, x: WORLD.w + 80, y: GROUND_Y - h + 8, w: rand(46, 72), h, passed: false });
+    } else {
+      const w = rand(80, 145);
+      hazards.push({ type, x: WORLD.w + 80, y: GROUND_Y + 1, w, h: 20, passed: false });
+    }
+  }
+
+  function die() {
+    running = false;
+    gameOver = true;
+    dust(biker.x + biker.w * 0.45, biker.y + biker.h * 0.9, 22);
+    if (score > best) {
+      best = score;
+      localStorage.setItem(bestKey, String(best));
+      elBest.textContent = best;
+    }
+  }
+
+  function awardLandingBonus() {
+    const travel = Math.max(0, biker.x - biker.lastGroundX) + speed * biker.airborneTime;
+    const jumpPoints = Math.floor(travel * 0.04);
+    const trickPoints = biker.flipsCompleted * 80;
+    const add = (jumpPoints + trickPoints) * combo;
+
+    if (add > 0) {
+      score += add;
+      combo = Math.min(8, combo + (biker.flipsCompleted > 0 ? 2 : 1));
+      elScore.textContent = score;
+      elCombo.textContent = "x" + combo;
+      sparkle(biker.x + biker.w * 0.55, biker.y + 15, biker.flipsCompleted > 0 ? 20 : 10);
+    } else {
+      combo = 1;
+      elCombo.textContent = "x1";
+    }
+    biker.lastGroundX = biker.x;
+  }
+
+  function aabb(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function roundRect(x, y, w, h, r, fill, stroke) {
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function dust(x, y, n=12) {
+    for (let i = 0; i < n; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 80 + Math.random() * 220;
+      particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 90, life: 0.4 + Math.random() * 0.35, color: "220,190,150" });
+    }
+  }
+
+  function sparkle(x, y, n=12) {
+    for (let i = 0; i < n; i++) {
+      const angle = -Math.PI * 0.5 + Math.random() * Math.PI;
+      const speed = 130 + Math.random() * 250;
+      particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 120, life: 0.45 + Math.random() * 0.35, color: "255,255,255" });
+    }
+  }
+
+  function drawClouds() {
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    for (let i = 0; i < 6; i++) {
+      const x = (i * 230 - parallaxFar) % (WORLD.w + 280) - 80;
+      const y = 42 + (i % 3) * 18;
+      ctx.beginPath();
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.arc(x + 24, y - 6, 24, 0, Math.PI * 2);
+      ctx.arc(x + 54, y + 2, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawHillsWithTrees() {
+    hill(0.08, "rgba(66,133,103,0.30)", 280, 162, 38);
+    hill(0.14, "rgba(40,110,88,0.36)", 220, 210, 62);
+
+    for (let i = 0; i < 18; i++) {
+      const x = (i * 100 - parallaxNear * 1.2) % (WORLD.w + 120) - 40;
+      const y = GROUND_Y - 78 - (i % 4) * 9;
+      drawTree(x, y, 0.7 + (i % 3) * 0.2);
+    }
+  }
+
+  function hill(par, fill, step, baseY, amp) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    const offset = (parallaxNear * par) % step;
+    ctx.moveTo(-step + offset, baseY);
+    for (let x = -step; x <= WORLD.w + step; x += step) {
+      const xx = x + offset;
+      const h = amp + 24 * Math.sin((xx + 30) * 0.013) + 16 * Math.sin((xx + 150) * 0.02);
+      ctx.quadraticCurveTo(xx + step * 0.5, baseY - h, xx + step, baseY);
+    }
+    ctx.lineTo(WORLD.w + step, GROUND_Y);
+    ctx.lineTo(-step, GROUND_Y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawTree(x, y, s) {
+    ctx.fillStyle = "rgba(60,44,30,0.6)";
+    ctx.fillRect(x + 8 * s, y + 24 * s, 6 * s, 20 * s);
+    ctx.fillStyle = "rgba(29,103,64,0.65)";
+    ctx.beginPath();
+    ctx.moveTo(x, y + 30 * s);
+    ctx.lineTo(x + 11 * s, y);
+    ctx.lineTo(x + 22 * s, y + 30 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x + 3 * s, y + 20 * s);
+    ctx.lineTo(x + 11 * s, y - 8 * s);
+    ctx.lineTo(x + 19 * s, y + 20 * s);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawGround() {
+    ctx.fillStyle = "rgba(108, 76, 45, 0.35)";
+    ctx.fillRect(0, GROUND_Y, WORLD.w, WORLD.h - GROUND_Y);
+
+    ctx.strokeStyle = "rgba(86,62,42,0.7)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y + 0.5);
+    ctx.lineTo(WORLD.w, GROUND_Y + 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(137,95,61,0.42)";
+    for (let i = 0; i < 140; i++) {
+      const x = (i * 34 + parallaxNear * 0.8) % (WORLD.w + 34) - 20;
+      const y = GROUND_Y + 8 + (i % 3) * 8;
+      ctx.fillRect(x, y, 10, 2);
+    }
+  }
+
+  function drawStone(o) {
+    ctx.fillStyle = "#6b7079";
+    roundRect(o.x, o.y, o.w, o.h, 14, true, false);
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(o.x + 8 + i * 14, o.y + 10 + (i % 2) * 10, 10, 3);
+    }
+  }
+
+  function drawGap(o) {
+    ctx.fillStyle = "rgba(20,16,12,0.72)";
+    ctx.fillRect(o.x, GROUND_Y + 1, o.w, 30);
+    ctx.fillStyle = "rgba(70,45,26,0.8)";
+    ctx.fillRect(o.x - 2, GROUND_Y - 2, 2, 6);
+    ctx.fillRect(o.x + o.w, GROUND_Y - 2, 2, 6);
+  }
+
+  function drawBiker() {
+    const { x, y, w, h } = biker;
+    const s = BIKER_STYLE.scale;
+    const cx = x + w * 0.46;
+    const cy = y + h * 0.56;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(biker.rotation);
+    ctx.translate(-cx, -cy);
+
+    const rearWheel = { x: x + w * 0.20, y: y + h * 0.83, r: 23 * s };
+    const frontWheel = { x: x + w * 0.80, y: y + h * 0.83, r: 23 * s };
+
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,0.16)";
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.5, GROUND_Y + 10, w * 0.43, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = BIKER_STYLE.bike.tire;
+    [rearWheel, frontWheel].forEach((wheel) => {
+      ctx.beginPath();
+      ctx.arc(wheel.x, wheel.y, wheel.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = BIKER_STYLE.bike.rim;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (Math.PI * 2 / 8) * i;
+        ctx.moveTo(wheel.x, wheel.y);
+        ctx.lineTo(wheel.x + Math.cos(a) * wheel.r * 0.9, wheel.y + Math.sin(a) * wheel.r * 0.9);
+      }
+      ctx.stroke();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = BIKER_STYLE.bike.tire;
+    });
+
+    // bike frame
+    ctx.strokeStyle = BIKER_STYLE.bike.frame;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(rearWheel.x, rearWheel.y - 4);
+    ctx.lineTo(x + w * 0.50, y + h * 0.55);
+    ctx.lineTo(frontWheel.x - 4, frontWheel.y - 5);
+    ctx.lineTo(x + w * 0.58, y + h * 0.45);
+    ctx.lineTo(x + w * 0.45, y + h * 0.46);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.57, y + h * 0.45);
+    ctx.lineTo(x + w * 0.70, y + h * 0.30);
+    ctx.lineTo(x + w * 0.82, y + h * 0.26);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(x + w * 0.45, y + h * 0.56, 8, 0, Math.PI * 2);
+    ctx.fillStyle = BIKER_STYLE.bike.chainring;
+    ctx.fill();
+
+    // rider torso
+    ctx.fillStyle = BIKER_STYLE.rider.shirt;
+    roundRect(x + w * 0.34, y + h * 0.26, 34 * s, 24 * s, 8, true, false);
+    ctx.fillStyle = BIKER_STYLE.rider.sleeves;
+    roundRect(x + w * 0.31, y + h * 0.27, 7 * s, 15 * s, 3, true, false);
+    roundRect(x + w * 0.63, y + h * 0.30, 7 * s, 14 * s, 3, true, false);
+
+    // head and helmet
+    ctx.fillStyle = BIKER_STYLE.rider.skin;
+    ctx.beginPath();
+    ctx.arc(x + w * 0.47, y + h * 0.20, 10 * s, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = BIKER_STYLE.rider.helmet;
+    roundRect(x + w * 0.39, y + h * 0.10, 24 * s, 12 * s, 5, true, false);
+    ctx.fillStyle = BIKER_STYLE.rider.visor;
+    roundRect(x + w * 0.54, y + h * 0.11, 14 * s, 5 * s, 3, true, false);
+
+    // limbs
+    ctx.strokeStyle = BIKER_STYLE.rider.skin;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.38, y + h * 0.34);
+    ctx.lineTo(x + w * 0.50, y + h * 0.46);
+    ctx.lineTo(x + w * 0.45, y + h * 0.58);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.60, y + h * 0.34);
+    ctx.lineTo(x + w * 0.70, y + h * 0.30);
+    ctx.stroke();
+
+    ctx.strokeStyle = BIKER_STYLE.rider.shorts;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.43, y + h * 0.48);
+    ctx.lineTo(x + w * 0.49, y + h * 0.60);
+    ctx.lineTo(x + w * 0.56, y + h * 0.78);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.44, y + h * 0.50);
+    ctx.lineTo(x + w * 0.38, y + h * 0.64);
+    ctx.lineTo(x + w * 0.24, y + h * 0.80);
+    ctx.stroke();
+
+    ctx.fillStyle = BIKER_STYLE.rider.shoes;
+    roundRect(x + w * 0.54, y + h * 0.76, 12 * s, 5 * s, 2, true, false);
+    roundRect(x + w * 0.20, y + h * 0.79, 12 * s, 5 * s, 2, true, false);
+
+    ctx.restore();
+  }
+
+  function drawParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      p.vy += 1200 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      const a = clamp(p.life, 0, 1);
+      ctx.fillStyle = `rgba(${p.color}, ${0.5 * a})`;
+      ctx.fillRect(p.x, p.y, 3, 3);
+    }
+  }
+
+  function drawOverlay() {
+    if (running && !gameOver) return;
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    roundRect(WORLD.w * 0.17, WORLD.h * 0.17, WORLD.w * 0.66, WORLD.h * 0.28, 20, true, false);
+
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "700 34px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(gameOver ? "Crash!" : "Shred Trail", WORLD.w / 2, WORLD.h * 0.30);
+
+    ctx.font = "500 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText("Tap once to jump. Double tap quickly for a backflip trick.", WORLD.w / 2, WORLD.h * 0.36);
+    ctx.fillText(gameOver ? "Tap to restart" : "Tap anywhere to start", WORLD.w / 2, WORLD.h * 0.41);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, WORLD.w, WORLD.h);
+    drawClouds();
+    drawHillsWithTrees();
+    drawGround();
+
+    for (const h of hazards) {
+      if (h.type === "stone") drawStone(h);
+      else drawGap(h);
+    }
+
+    drawBiker();
+    drawParticles(0);
+    drawOverlay();
+  }
+
+  function update(dt) {
+    if (tapTimer > 0) {
+      tapTimer -= dt;
+      if (tapTimer <= 0) tapCount = 0;
+    }
+
+    if (running && !gameOver) {
+      speed = PHYSICS.baseSpeed + (score / 180) * PHYSICS.speedGrow;
+      parallaxNear = (parallaxNear + speed * 0.23 * dt) % (WORLD.w + 220);
+      parallaxFar = (parallaxFar + speed * 0.08 * dt) % (WORLD.w + 250);
+
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnHazard();
+        spawnTimer = rand(PHYSICS.spawnMin, PHYSICS.spawnMax) * clamp(1 - score / 2500, 0.58, 1);
+      }
+
+      biker.vy += PHYSICS.gravity * dt;
+      biker.y += biker.vy * dt;
+
+      if (!biker.onGround) biker.airborneTime += dt;
+      if (biker.isFlipping) {
+        biker.rotation += dt * 8.5;
+        if (biker.rotation >= Math.PI * 2) {
+          biker.rotation -= Math.PI * 2;
+          biker.flipsCompleted += 1;
+        }
+      }
+
+      for (let i = hazards.length - 1; i >= 0; i--) {
+        const h = hazards[i];
+        h.x -= speed * dt;
+
+        if (h.x + h.w < -120) {
+          hazards.splice(i, 1);
+          continue;
+        }
+
+        if (!h.passed && h.x + h.w < biker.x) {
+          h.passed = true;
+          score += h.type === "gap" ? 28 : 16;
+          elScore.textContent = score;
+        }
+
+        if (h.type === "stone") {
+          const hitbox = { x: biker.x + 24, y: biker.y + 16, w: biker.w - 38, h: biker.h - 22 };
+          if (aabb(hitbox, h)) {
+            die();
+            break;
+          }
+        }
+
+        if (h.type === "gap") {
+          const footX = biker.x + biker.w * 0.38;
+          const overGap = footX > h.x && footX < h.x + h.w;
+          if (overGap && biker.y + biker.h >= GROUND_Y - 2) {
+            die();
+            break;
+          }
+        }
+      }
+
+      if (biker.y >= GROUND_Y - biker.h) {
+        if (!biker.onGround) {
+          awardLandingBonus();
+          if (Math.abs(biker.rotation) > 0.8) {
+            combo = Math.max(1, combo - 1);
+            elCombo.textContent = "x" + combo;
+          }
+        }
+        biker.y = GROUND_Y - biker.h;
+        biker.vy = 0;
+        biker.onGround = true;
+        biker.rotation = 0;
+        biker.isFlipping = false;
+      } else {
+        biker.onGround = false;
+      }
+    }
+
+    drawParticles(dt);
+  }
+
+  function loop(now) {
+    const dt = clamp((now - tPrev) / 1000, 0, 0.033);
+    tPrev = now;
+
+    draw();
+    update(dt);
+
+    requestAnimationFrame(loop);
+  }
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  resize();
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
